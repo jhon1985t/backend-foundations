@@ -46,7 +46,7 @@ jobs:
             poetry-${{ runner.os }}-
 
       - name: Install deps
-        run: poetry install --no-interaction --no-ansi
+        run: poetry install --no-interaction --no-ansi --no-root
 
       - name: Ruff (lint)
         run: poetry run ruff check .
