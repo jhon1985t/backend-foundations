@@ -1,4 +1,5 @@
 # 🧠 Backend Foundations
+![CI](https://github.com/TU_USUARIO/backend-foundations/actions/workflows/ci.yml/badge.svg)
 
 Proyecto base para el aprendizaje y desarrollo profesional de **backend con Python**.
 Incluye herramientas esenciales para proyectos empresariales modernos (Poetry, pre-commit, pytest, Docker).
