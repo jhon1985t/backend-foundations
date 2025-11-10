@@ -1,0 +1,58 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+.env
+.venv
+venv/
+ENV/
+env/
+pip-log.txt
+poetry.lock
+
+# === Virtual environments ===
+# (si usas Poetry, no subas el venv local)
+# Puedes descomentar si usas venv manual
+# .venv/
+
+# === Testing & coverage ===
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+
+# === Logs ===
+*.log
+logs/
+log.txt
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+*.pid
+*.tar
+*.bak
+*.tmp
+docker-compose.override.yml
+
+# === Build artefacts ===
+build/
+dist/
+site/
+
+# === MyPy & Ruff caches ===
+.mypy_cache/
+.ruff_cache/
