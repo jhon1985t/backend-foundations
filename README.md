@@ -24,3 +24,48 @@ cd backend-foundations
 
 # Instalar dependencias
 poetry install
+
+# Servidor
+poetry run uvicorn app.main:app --reload
+
+Tests and notes
+================
+
+Pytest configuration
+--------------------
+
+- Pytest is configured to include the project root in `PYTHONPATH` via:
+
+  ```toml
+  [tool.pytest.ini_options]
+  pythonpath = ["."]
+  ```
+
+  This allows imports like `from app.main import app` to work when running `pytest`.
+
+httpx tests
+-----------
+
+- Tests use `httpx.ASGITransport(app=app)` with `httpx.AsyncClient(transport=...)` so
+  requests are executed against the ASGI app in-memory. This is compatible with
+  `httpx` >= 0.28 and avoids real network calls during tests.
+
+Trailing slash note
+-------------------
+
+- Use registered paths exactly as defined in the app. For example, if the route is
+  registered as `@router.post("/items/")`, then calling `POST /items` (without
+  trailing slash) will result in a 307 redirect to `/items/` which changes the
+  response status and can make tests fail unexpectedly.
+
+Commands
+--------
+
+```powershell
+poetry run pytest tests/test_api.py -q
+poetry run pytest -q
+```
+
+# Lint & format
+poetry run ruff check .
+poetry run black app tests
