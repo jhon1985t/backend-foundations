@@ -69,4 +69,4 @@ jobs:
         run: docker build -t backend-foundations .
 
       - name: Run tests in container
-        run: docker run --rm backend-foundations
+        run: docker run --rm backend-foundations poetry run pytest -q

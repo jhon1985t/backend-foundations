@@ -16,17 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc \
  && rm -rf /var/lib/apt/lists/*
 
-# ...
-# COPY pyproject.toml poetry.lock* README.md ./
-# RUN poetry install
-# COPY . .
-# ...
-
 # Instala Poetry
 RUN pip install --upgrade pip && pip install "poetry==2.2.1"
 
 # Copia solo los manifiestos para aprovechar la caché
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock* README.md ./
 
 # Instala dependencias sin instalar el proyecto
 RUN poetry install --no-root
@@ -34,10 +28,7 @@ RUN poetry install --no-root
 # Ahora sí copia el resto del código
 COPY . .
 
-# Reemplaza CMD de pytest por:
-# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
 
-# EXPOSE 8000
-
-# Por ahora, tu proyecto solo tiene dev-deps y tests:
-CMD ["pytest", "-q"]
+# Run the application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
