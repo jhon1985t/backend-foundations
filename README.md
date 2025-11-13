@@ -69,3 +69,4 @@ poetry run pytest -q
 # Lint & format
 poetry run ruff check .
 poetry run black app tests
+pre-commit run --all-files
