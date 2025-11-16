@@ -7,9 +7,9 @@ from app.main import app
 async def async_client():
     """Cliente HTTP asíncrono para pruebas de integración.
 
-    Usamos `pytest_asyncio.fixture` para declarar fixtures asíncronas explícitamente.
-    Esto evita advertencias/errores en pytest 9 donde los fixtures async deben ser manejados
-    por el plugin asyncio.
+    Se usa `pytest_asyncio.fixture` para declarar fixtures asíncronas y
+    `ASGITransport(app=app)` para ejecutar peticiones contra la app ASGI
+    en memoria (compatible con httpx >=0.28).
     """
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
