@@ -60,6 +60,8 @@ Trailing slash note
 
 Commands
 --------
+# Server
+poetry run uvicorn app.main:app --reload
 
 ```powershell
 poetry run pytest tests/test_api.py -q
