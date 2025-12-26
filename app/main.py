@@ -9,10 +9,13 @@ from app.error_handlers import (
     handle_domain_error,
 )
 from app.exceptions import DomainError
+from app.db import engine, Base
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Backend Foundations API", version="1.0.0")
+    # Create database tables
+    Base.metadata.create_all(bind=engine)
     # Routes
     app.include_router(api_router)
     # Global Error Handlers
