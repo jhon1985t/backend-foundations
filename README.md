@@ -28,6 +28,18 @@ poetry install
 # Servidor
 poetry run uvicorn app.main:app --reload
 
+Env vars (DB opcional)
+----------------------
+
+- Por defecto, la app usa SQLite local (`./local.db`) para evitar dependencias en desarrollo/CI.
+- Para usar Postgres, exporta `DATABASE_URL` antes de levantar el server:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+docker compose up db -d
+poetry run uvicorn app.main:app --reload
+```
+
 Tests and notes
 ================
 
