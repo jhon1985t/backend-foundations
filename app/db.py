@@ -1,7 +1,12 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = "postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+# Use env var if provided; default to local SQLite to keep tests/CI working
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite+pysqlite:///./local.db",
+)
 
 
 class Base(DeclarativeBase):

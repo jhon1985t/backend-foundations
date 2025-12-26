@@ -14,11 +14,12 @@
 - **Servicios locales**
 	- Instala deps: `poetry install` (usa Python 3.13).
 	- App en vivo: `poetry run uvicorn app.main:app --reload`.
-	- DB opcional: `docker compose up db -d` (no se usa aún en código; es Postgres en 5433).
+  - DB opcional: por defecto usa SQLite (`./local.db`). Para Postgres, exporta `DATABASE_URL` y levanta el servicio: `docker compose up db -d` (5433).
 	- Pruebas: `poetry run pytest -q` o archivos específicos (`poetry run pytest tests/test_api.py -q`).
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
 - **Versionado** Objetivo Python 3.13; FastAPI 0.121 y uvicorn 0.38 fijados en [pyproject.toml](pyproject.toml#L1-L25).
+- **Config DB** `DATABASE_URL` controla la conexión. Si no está definida, se usa SQLite local para que CI/tests no dependan de Postgres. Para desarrollo con Postgres: `postgresql+psycopg://app_user:app_password@localhost:5433/app_db`.
 - **Extender rutas** Añade endpoints en [app/api/routes.py](app/api/routes.py#L6-L43) o nuevos módulos y súmalos en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
 - **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` en nuevos tests en vez de `TestClient` para seguir el estilo existente.
 - **Semilla/aislamiento** Usa el fixture `clean_fake_db` de [tests/conftest.py](tests/conftest.py#L5-L29) para limpiar `_fake_db`/`_next_id` en casos que requieran estado limpio; también puedes llamar a `reset_fake_db()` directamente.
