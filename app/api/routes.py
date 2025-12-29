@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from app.models import ItemIn, ItemOut
 from app.exceptions import ConflictError
+from sqlalchemy import text
+from app.db import engine
 
 
 router = APIRouter()
@@ -13,6 +15,50 @@ async def require_api_key(x_api_key: str = Header(default="")):
     if x_api_key != "secret-dev-key":
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return True
+
+
+@router.get("/debug/db", tags=["Debug"])
+def debug_db():
+    try:
+        with engine.connect() as conn:
+            # Try PostgreSQL query first
+            try:
+                db = conn.execute(text("select current_database()")).scalar()
+                tables = conn.execute(
+                    text(
+                        """
+                    select tablename
+                    from pg_tables
+                    where schemaname = 'public'
+                    """
+                    )
+                ).fetchall()
+                table_list = [t[0] for t in tables]
+            except Exception:
+                # Fallback for SQLite
+                db = conn.execute(text("select 'sqlite' as db")).scalar()
+                tables = conn.execute(
+                    text(
+                        """
+                    select name
+                    from sqlite_master
+                    where type='table'
+                    """
+                    )
+                ).fetchall()
+                table_list = [t[0] for t in tables]
+
+        return {
+            "database": db,
+            "tables": table_list,
+            "engine_url": str(engine.url).replace(engine.url.password or "", "***"),
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "database": "unavailable",
+            "tables": [],
+        }
 
 
 @router.get("/health", tags=["Health"])

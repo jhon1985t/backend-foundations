@@ -73,6 +73,7 @@ Trailing slash note
 Commands
 --------
 # Server
+docker compose up db -d
 poetry run uvicorn app.main:app --reload
 
 ```powershell
