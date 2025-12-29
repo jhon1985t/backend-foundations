@@ -26,9 +26,9 @@ jobs:
           - 5433:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 15s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -50,6 +50,22 @@ jobs:
           poetry --version
           # Usar el entorno del runner (más rápido en CI)
           poetry config virtualenvs.create false
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..20}; do
+            if pg_isready -h localhost -p 5433 -U test_user; then
+              echo "Postgres is ready"
+              break
+            fi
+            echo "Waiting for Postgres ($i/20)..."
+            sleep 3
+          done
 
       - name: Create test database
         env:
