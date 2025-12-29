@@ -15,6 +15,21 @@ jobs:
       matrix:
         python-version: [ "3.13" ]  # puedes añadir "3.11" si quieres matriz
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 15s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +51,28 @@ jobs:
           # Usar el entorno del runner (más rápido en CI)
           poetry config virtualenvs.create false
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..20}; do
+            if pg_isready -h localhost -p 5433 -U test_user; then
+              echo "Postgres is ready"
+              break
+            fi
+            echo "Waiting for Postgres ($i/20)..."
+            sleep 3
+          done
+
+      - name: Create test database
+        env:
+          PGPASSWORD: test_password
+        run: |
+          psql -h localhost -p 5433 -U test_user -d postgres -c "CREATE DATABASE app_test_db;" || echo "Database already exists"
+
       - name: Cache Poetry
         uses: actions/cache@v4
         with:
@@ -55,6 +92,8 @@ jobs:
         run: poetry run black --check app tests
 
       - name: Pytest
+        env:
+          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
         run: poetry run pytest -q
 
   docker-build:

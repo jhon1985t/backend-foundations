@@ -1,28 +1,31 @@
 # Backend Foundations Copilot Guide
-- **Arquitectura** App factory en [app/main.py](app/main.py#L15-L28) registra un único `api_router` y centraliza 3 handlers globales; sigue este patrón si agregas routers o excepciones para mantener el wiring consistente.
+- **Arquitectura** App factory en [app/main.py](app/main.py#L15-L28) registra `api_router` y `users_router`, centraliza 3 handlers globales; sigue este patrón si agregas routers o excepciones para mantener el wiring consistente.
 - **Routes** Endpoints en [app/api/routes.py](app/api/routes.py#L6-L43) usando el `router` de módulo; incluye routers adicionales vía `app.include_router` en `create_app`.
-- **Auth** Endpoints mutantes dependen de `require_api_key` con header `x-api-key: secret-dev-key` ([app/api/routes.py](app/api/routes.py#L12-L16)); fallas devuelven `HTTP_401`.
-- **Data store** Lista en memoria `_fake_db` y contador `_next_id` ([app/api/routes.py](app/api/routes.py#L8-L10)); el estado persiste entre requests/tests, resetea si necesitas aislamiento.
-- **Flujo POST /items/** Genera SKU `AUTO-XXXX` si falta y valida unicidad; colisión levanta `ConflictError` ([app/api/routes.py](app/api/routes.py#L23-L43)).
-- **Trailing slash** Usa rutas registradas con slash (`/items/`) para evitar 307 que cambian el status (ver [tests/test_api.py](tests/test_api.py#L43-L56)).
-- **Validaciones** Pydantic v2 en [app/models.py](app/models.py#L13-L55): SKU regex `^[A-Z0-9-]{6,20}$`, `discount` 0-0.9, precio final siempre >= 1.0 via `model_validator`.
-- **Errores y dominio** Envuelve todo en `{error:{code,message,details}}` ([app/error_handlers.py](app/error_handlers.py#L8-L75)); usa `DomainError`/`ConflictError`/`ResourceNotFound` ([app/exceptions.py](app/exceptions.py#L1-L22)) para que el handler asigne 400/404/409 automáticamente.
+- **Auth** Endpoints mutantes dependen de `require_api_key` con header `x-api-key: secret-dev-key` ([app/api/routes.py](app/api/routes.py#L14-L17)); fallas devuelven `HTTP_401`.
+- **Data store** Dual: memoria `_fake_db` para items ([app/api/routes.py](app/api/routes.py#L9-L11)) y Postgres para usuarios ([app/users/routes.py](app/users/routes.py#L11-L34)); SQLAlchemy sync con modelo `User` ([app/users/models.py](app/users/models.py#L1-L12)).
+- **Flujo POST /items/** Genera SKU `AUTO-XXXX` si falta y valida unicidad; colisión levanta `ConflictError` con `details` dict.
+- **Flujo POST /users/** Valida email único en DB; conflicto levanta `ConflictError` con `details={"email": payload.email}` ([app/users/routes.py](app/users/routes.py#L27)).
+- **Trailing slash** Usa rutas registradas con slash (`/items/`, `/users/`) para evitar 307 que cambian el status.
+- **Validaciones** Pydantic v2 en [app/models.py](app/models.py#L13-L55) y [app/users/schemas.py](app/users/schemas.py#L1-L11): `model_config = {"from_attributes": True}` para ORM, validaciones field-level y model-level.
+- **Errores y dominio** Envuelve todo en `{error:{code,message,details}}` ([app/error_handlers.py](app/error_handlers.py#L8-L75)); usa `DomainError`/`ConflictError`/`ResourceNotFound` ([app/exceptions.py](app/exceptions.py#L1-L22)) con parámetro `details` (dict) para que el handler asigne 400/404/409 automáticamente.
 - **HTTP/validation** `HTTPException` mapea a `HTTP_<status>` con method/url/path; validaciones devuelven `VALIDATION_ERROR` con lista `errors` serializable y `body` crudo ([app/error_handlers.py](app/error_handlers.py#L21-L57)).
-- **Buenas prácticas de arquitectura** Mantén lógica de negocio en el router o en nuevas capas pero retornando `DomainError` cuando corresponda; conserva el app factory para pruebas y futura configuración; evita depender directamente de `_fake_db` desde fuera del router para poder reemplazarlo por persistencia real.
-- **Patrones de pruebas** Usa `pytest.mark.asyncio` y el fixture `async_client` con `ASGITransport(app=app)` ([tests/conftest.py](tests/conftest.py#L1-L17)) para evitar red; incluye siempre `x-api-key` y la ruta con slash; reinicia `_fake_db`/`_next_id` si un caso necesita estado limpio.
-- **Cobertura actual** Pruebas cubren health, creación de item, validaciones, auth y conflicto ([tests/test_api.py](tests/test_api.py#L10-L64), [tests/test_errors.py](tests/test_errors.py#L4-L38)); `test_models.py` e integración están vacíos y listos para extender.
+- **Debug endpoint** GET `/debug/db` ([app/api/routes.py](app/api/routes.py#L20-L54)) soporta SQLite y Postgres, devuelve nombre de DB, tablas y URL del engine; útil para verificar conexión.
+- **Buenas prácticas de arquitectura** Mantén lógica de negocio en el router o en nuevas capas pero retornando `DomainError` cuando corresponda; conserva el app factory para pruebas y futura configuración.
+- **Patrones de pruebas** Usa `@pytest.mark.asyncio` y el fixture `async_client` con `ASGITransport(app=app)` ([tests/conftest.py](tests/conftest.py#L1-L47)) para evitar red; tests que usan DB reciben `db_session` override automáticamente; incluye siempre `x-api-key` y la ruta con slash.
+- **Cobertura actual** 10 tests: health, items (4), errores (3), smoke (1), usuarios con DB (2) en [tests/test_users.py](tests/test_users.py#L1-L36); todos pasan con `poetry run pytest -q`.
 - **Servicios locales**
 	- Instala deps: `poetry install` (usa Python 3.13).
-	- App en vivo: `poetry run uvicorn app.main:app --reload`.
-  - DB opcional: por defecto usa SQLite (`./local.db`). Para Postgres, exporta `DATABASE_URL` y levanta el servicio: `docker compose up db -d` (5433).
-	- Pruebas: `poetry run pytest -q` o archivos específicos (`poetry run pytest tests/test_api.py -q`).
+	- App en vivo con Postgres: `$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"; poetry run uvicorn app.main:app --reload`.
+  - App en vivo con SQLite: `poetry run uvicorn app.main:app --reload` (default, usa `./local.db`).
+  - DB Postgres: levanta el servicio con `docker compose up db -d` (puerto 5433).
+  - Crear BD de prueba: `docker exec -it $(docker ps -q -f "name=db") psql -U app_user -d postgres -c "CREATE DATABASE app_test_db;"`.
+	- Pruebas: `poetry run pytest -q` (10 tests, incluye integración con Postgres en `app_test_db`).
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
 - **Versionado** Objetivo Python 3.13; FastAPI 0.121 y uvicorn 0.38 fijados en [pyproject.toml](pyproject.toml#L1-L25).
-- **Config DB** `DATABASE_URL` controla la conexión. Si no está definida, se usa SQLite local para que CI/tests no dependan de Postgres. Para desarrollo con Postgres: `postgresql+psycopg://app_user:app_password@localhost:5433/app_db`.
-- **Extender rutas** Añade endpoints en [app/api/routes.py](app/api/routes.py#L6-L43) o nuevos módulos y súmalos en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
-- **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` en nuevos tests en vez de `TestClient` para seguir el estilo existente.
-- **Semilla/aislamiento** Usa el fixture `clean_fake_db` de [tests/conftest.py](tests/conftest.py#L5-L29) para limpiar `_fake_db`/`_next_id` en casos que requieran estado limpio; también puedes llamar a `reset_fake_db()` directamente.
+- **Config DB** `DATABASE_URL` controla la conexión. Si no está definida, se usa SQLite local (`./local.db`). Tests usan `app_test_db` hardcoded en [tests/conftest.py](tests/conftest.py#L9). Para desarrollo con Postgres: `postgresql+psycopg://app_user:app_password@localhost:5433/app_db`.
+- **Extender rutas** Añade endpoints en módulos bajo `app/` y súmalos con `app.include_router` en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
+- **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` + `@pytest_asyncio.fixture` ([tests/conftest.py](tests/conftest.py#L1-L2)) para fixtures async; convención de nombres `test_*.py` para auto-discovery.
 
 ---
 
@@ -31,28 +34,33 @@
 ### Estado Actual (Completado)
 - ✅ App factory + error handlers centralizados
 - ✅ Validaciones Pydantic v2 + dominio de errores
-- ✅ Tests async con httpx + ASGITransport
+- ✅ Tests async con httpx + ASGITransport (10 tests pasando)
 - ✅ CI/CD (GitHub Actions) + linters (ruff, black)
-- ✅ Docker + Postgres en compose (no integrado aún)
+- ✅ Docker + Postgres en compose (integrado con usuarios)
+- ✅ SQLAlchemy sync + modelo User + endpoint POST /users/
+- ✅ Endpoint /debug/db compatible con SQLite y Postgres
+- ✅ BD de prueba separada (app_test_db) para testing
 
 ### Brechas Principales vs Backend Completo
-1. **Persistencia:** Postgres definido pero sin ORM/migraciones/repositorios
-2. **Arquitectura en capas:** Todo en router, falta services/repositories
+1. **Persistencia:** SQLAlchemy sync básico, falta async/migraciones/repositorios
+2. **Arquitectura en capas:** Lógica en routers, falta services/repositories
 3. **Auth:** Solo API key hardcoded, sin JWT/OAuth2/roles
 4. **Mensajería:** Sin Kafka/SQS/Celery/eventos de dominio
 5. **gRPC:** No existe protobuf ni servicios gRPC
 6. **Observabilidad:** Sin logging estructurado/métricas/traces
-7. **Testing:** Sin integración con DB real, load tests, contract tests
+7. **Testing:** Sin load tests, contract tests, mutation testing
 8. **Config:** Settings hardcoded, sin gestión de entornos/secrets
 
 ### Roadmap Sugerido (Orden Pedagógico)
 
-#### **Fase 1: Persistencia (Siguiente paso recomendado)**
-- Integrar SQLAlchemy async con Postgres
-- Crear modelos ORM + migraciones (Alembic)
-- Implementar repositorios (separar de routes)
-- Tests con DB real (testcontainers)
-- Estructura: `app/db/`, `app/repositories/`, `app/models/` (ORM), `app/schemas/` (DTOs)
+#### **Fase 1: Persistencia (En progreso)**
+- ✅ SQLAlchemy sync integrado con Postgres
+- ✅ Modelo User + schemas Pydantic
+- ✅ Tests con DB real (testcontainers-style con app_test_db)
+- ⏳ Migrar a SQLAlchemy async
+- ⏳ Migraciones con Alembic
+- ⏳ Implementar repositorios (separar de routes)
+- ⏳ Estructura: `app/repositories/`, separar `app/schemas/` de models
 
 #### **Fase 2: Arquitectura en Capas**
 - Crear `app/services/` con lógica de negocio

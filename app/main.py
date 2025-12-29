@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router as api_router
+from app.users.routes import router as users_router
 from app.error_handlers import (
     handle_http_exception,
     handle_request_validation,
@@ -11,6 +12,8 @@ from app.error_handlers import (
 from app.exceptions import DomainError
 from app.db import engine, Base
 from sqlalchemy.exc import OperationalError
+
+from app.users.models import User  # noqa: F401 to register the model
 
 
 def create_app() -> FastAPI:
@@ -23,6 +26,7 @@ def create_app() -> FastAPI:
         pass
     # Routes
     app.include_router(api_router)
+    app.include_router(users_router)
     # Global Error Handlers
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_request_validation)
