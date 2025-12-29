@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+import os
 
 from httpx import AsyncClient, ASGITransport
 from app.main import create_app
@@ -8,8 +9,10 @@ from app.users.routes import get_db
 from sqlalchemy import text
 
 
-TEST_DATABASE_URL = (
-    "postgresql+psycopg://app_user:app_password@localhost:5433/app_test_db"
+# Use DATABASE_URL from environment (CI) or default for local development
+TEST_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://app_user:app_password@localhost:5433/app_test_db",
 )
 
 engine_test = create_engine(TEST_DATABASE_URL, echo=False)
