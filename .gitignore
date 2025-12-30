@@ -25,6 +25,10 @@ htmlcov/
 .tox/
 .nox/
 .pytest_cache/
+*.sqlite
+*.db
+local.db
+test_db.sqlite
 
 # === Logs ===
 *.log

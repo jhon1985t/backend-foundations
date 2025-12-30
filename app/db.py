@@ -2,11 +2,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-# Use env var if provided; default to local SQLite to keep tests/CI working
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite+pysqlite:///./local.db",
-)
+# SQLite by default (works in local and CI)
+# Override with DATABASE_URL env var only if you need Postgres
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./local.db")
 
 
 class Base(DeclarativeBase):
