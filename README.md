@@ -80,6 +80,37 @@ poetry run uvicorn app.main:app --reload
 
 **Nota**: Los tests **siempre usan SQLite in-memory** para velocidad y aislamiento, independientemente de la configuración de la app.
 
+### **Flujos seguros de migración (evitar errores)**
+
+- **SQLite (default, sin riesgo de apuntar a Postgres):**
+  ```powershell
+  .\scripts\migrate_sqlite.ps1
+  ```
+  (limpia `DATABASE_URL`, aplica `alembic upgrade head` sobre `./local.db`).
+
+- **PostgreSQL (solo cuando quieras):**
+  ```powershell
+  .\scripts\migrate_postgres.ps1
+  ```
+  (setea `DATABASE_URL` y aplica `alembic upgrade head` al Postgres local por defecto; acepta `-Url` para personalizar).
+
+- **Chequeo rápido de a dónde apuntas:**
+  ```powershell
+  echo $env:DATABASE_URL   # vacío => SQLite local
+  ```
+
+- **Levantar servidor con SQLite (seguro):**
+  ```powershell
+  Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+  poetry run uvicorn app.main:app --reload
+  ```
+
+- **Levantar servidor con Postgres:**
+  ```powershell
+  $env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+  poetry run uvicorn app.main:app --reload
+  ```
+
 ---
 
 ## 🧪 Tests y Desarrollo
@@ -151,9 +182,9 @@ pre-commit run --all-files
 # Levantar PostgreSQL (opcional)
 docker compose up db -d
 
-# Crear tablas en Postgres (opcional, solo primera vez)
-$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
-poetry run python -c "from app.db import engine, Base; from app.users.models import User; Base.metadata.create_all(bind=engine)"
+# Migraciones seguras
+./scripts/migrate_sqlite.ps1         # SQLite por defecto
+./scripts/migrate_postgres.ps1       # PostgreSQL local (puedes pasar -Url "..." para otro destino)
 
 # Servidor en desarrollo
 poetry run uvicorn app.main:app --reload

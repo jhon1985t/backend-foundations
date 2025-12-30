@@ -10,15 +10,12 @@ from app.error_handlers import (
     handle_domain_error,
 )
 from app.exceptions import DomainError
-from app.db import engine, Base
 
 from app.users.models import User  # noqa: F401 to register the model
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Backend Foundations API", version="1.0.0")
-    # Create database tables (SQLite always works)
-    Base.metadata.create_all(bind=engine)
     # Routes
     app.include_router(api_router)
     app.include_router(users_router)
