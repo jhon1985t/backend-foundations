@@ -25,6 +25,16 @@ htmlcov/
 .tox/
 .nox/
 .pytest_cache/
+*.sqlite
+*.db
+local.db
+test_db.sqlite
+
+# === Alembic ===
+# Keep migrations (alembic/versions/*.py) but ignore SQLite DBs
+alembic.db
+alembic/*.db
+alembic/*.sqlite
 
 # === Logs ===
 *.log

@@ -25,63 +25,174 @@ cd backend-foundations
 # Instalar dependencias
 poetry install
 
-# Servidor
-poetry run uvicorn app.main:app --reload
-
-Env vars (DB opcional)
-----------------------
-
-- Por defecto, la app usa SQLite local (`./local.db`) para evitar dependencias en desarrollo/CI.
-- Para usar Postgres, exporta `DATABASE_URL` antes de levantar el server:
-
-```powershell
-$env:DATABASE_URL = "postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
-docker compose up db -d
+# Servidor (SQLite por defecto)
 poetry run uvicorn app.main:app --reload
 ```
 
-Tests and notes
-================
+Visita [http://localhost:8000/docs](http://localhost:8000/docs) para ver la documentación interactiva.
 
-Pytest configuration
---------------------
+---
 
-- Pytest is configured to include the project root in `PYTHONPATH` via:
+## 🗄️ Base de Datos
+
+### **SQLite (Default - Recomendado para Desarrollo)**
+
+Por defecto, la app usa **SQLite local** (`./local.db`) para:
+- ✅ Sin configuración ni instalación de servicios externos
+- ✅ Tests rápidos (in-memory)
+- ✅ Compatible con GitHub Actions CI sin setup adicional
+
+**No necesitas hacer nada**, solo corre `poetry run uvicorn app.main:app --reload`.
+
+---
+
+### **PostgreSQL (Opcional - Para Experimentar)**
+
+Si quieres probar con PostgreSQL (más realista para producción):
+
+**Opción A: Script Automático (Recomendado)**
+```powershell
+# Setup completo con un comando
+.\scripts\setup_postgres.ps1
+```
+
+**Opción B: Manual**
+```powershell
+# 1. Levantar PostgreSQL con Docker
+docker compose up db -d
+
+# 2. Crear las tablas (solo la primera vez)
+$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+poetry run python -c "from app.db import engine, Base; from app.users.models import User; Base.metadata.create_all(bind=engine)"
+
+# 3. Levantar la app con PostgreSQL
+$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+poetry run uvicorn app.main:app --reload
+```
+
+**Credenciales PostgreSQL** (configuradas en `docker-compose.yml`):
+- Host: `localhost:5433`
+- Usuario: `app_user`
+- Password: `app_password`
+- Base de datos: `app_db`
+
+**pgAdmin** (Opcional): Puedes conectarte con cualquier cliente Postgres a `localhost:5433` para inspeccionar las tablas.
+
+**Nota**: Los tests **siempre usan SQLite in-memory** para velocidad y aislamiento, independientemente de la configuración de la app.
+
+### **Flujos seguros de migración (evitar errores)**
+
+- **SQLite (default, sin riesgo de apuntar a Postgres):**
+  ```powershell
+  .\scripts\migrate_sqlite.ps1
+  ```
+  (limpia `DATABASE_URL`, aplica `alembic upgrade head` sobre `./local.db`).
+
+- **PostgreSQL (solo cuando quieras):**
+  ```powershell
+  .\scripts\migrate_postgres.ps1
+  ```
+  (setea `DATABASE_URL` y aplica `alembic upgrade head` al Postgres local por defecto; acepta `-Url` para personalizar).
+
+- **Chequeo rápido de a dónde apuntas:**
+  ```powershell
+  echo $env:DATABASE_URL   # vacío => SQLite local
+  ```
+
+- **Levantar servidor con SQLite (seguro):**
+  ```powershell
+  Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+  poetry run uvicorn app.main:app --reload
+  ```
+
+- **Levantar servidor con Postgres:**
+  ```powershell
+  $env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"
+  poetry run uvicorn app.main:app --reload
+  ```
+
+---
+
+## 🧪 Tests y Desarrollo
+
+### **Ejecutar Tests**
+
+```powershell
+# Todos los tests
+poetry run pytest -q
+
+# Tests específicos
+poetry run pytest tests/test_api.py -v
+poetry run pytest tests/test_users.py -v
+```
+
+Los tests usan **SQLite in-memory** automáticamente (rápido y aislado).
+
+---
+
+### **Linting y Formato**
+
+```powershell
+# Verificar código
+poetry run ruff check .
+
+# Formatear código
+poetry run black app tests
+
+# Pre-commit hooks (opcional)
+pre-commit run --all-files
+```
+
+---
+
+## 📝 Notas Técnicas
+
+### Pytest Configuration
+
+- Pytest incluye el root del proyecto en `PYTHONPATH` vía:
 
   ```toml
   [tool.pytest.ini_options]
   pythonpath = ["."]
   ```
 
-  This allows imports like `from app.main import app` to work when running `pytest`.
+  Esto permite imports como `from app.main import app` al ejecutar `pytest`.
 
-httpx tests
------------
+---
 
-- Tests use `httpx.ASGITransport(app=app)` with `httpx.AsyncClient(transport=...)` so
-  requests are executed against the ASGI app in-memory. This is compatible with
-  `httpx` >= 0.28 and avoids real network calls during tests.
+### httpx AsyncClient
 
-Trailing slash note
--------------------
+- Los tests usan `httpx.ASGITransport(app=app)` con `httpx.AsyncClient` para
+  ejecutar requests contra la app ASGI en memoria (sin red real).
+  Compatible con `httpx >= 0.28`.
 
-- Use registered paths exactly as defined in the app. For example, if the route is
-  registered as `@router.post("/items/")`, then calling `POST /items` (without
-  trailing slash) will result in a 307 redirect to `/items/` which changes the
-  response status and can make tests fail unexpectedly.
+---
 
-Commands
---------
-# Server
-docker compose up db -d
-poetry run uvicorn app.main:app --reload
+### Trailing Slash Note
+
+- Usa las rutas exactamente como están registradas. Si el route es
+  `@router.post("/items/")`, llamar `POST /items` (sin trailing slash) resulta
+  en un 307 redirect a `/items/` que cambia el status de la respuesta.
+
+---
+
+## 🔧 Comandos Útiles
 
 ```powershell
-poetry run pytest tests/test_api.py -q
-poetry run pytest -q
-```
+# Levantar PostgreSQL (opcional)
+docker compose up db -d
 
-# Lint & format
+# Migraciones seguras
+./scripts/migrate_sqlite.ps1         # SQLite por defecto
+./scripts/migrate_postgres.ps1       # PostgreSQL local (puedes pasar -Url "..." para otro destino)
+
+# Servidor en desarrollo
+poetry run uvicorn app.main:app --reload
+
+# Tests
+poetry run pytest -q
+
+# Lint
 poetry run ruff check .
 poetry run black app tests
-pre-commit run --all-files
+```
