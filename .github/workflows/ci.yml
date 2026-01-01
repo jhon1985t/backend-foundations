@@ -29,11 +29,11 @@ jobs:
           --health-interval 15s
           --health-timeout 5s
           --health-retries 10
+
       redis:
         image: redis:7
         ports:
           - 6380:6379
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout
@@ -99,6 +99,7 @@ jobs:
       - name: Pytest
         env:
           DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
+          REDIS_URL: "redis://localhost:6380/0"
         run: poetry run pytest -q
 
   docker-build:
