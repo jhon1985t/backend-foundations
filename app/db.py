@@ -1,16 +1,13 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-
-# SQLite by default (works in local and CI)
-# Override with DATABASE_URL env var only if you need Postgres
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./local.db")
+from app.settings import settings
 
 
 class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(DATABASE_URL, echo=False)
+# DATABASE_URL viene de settings (lee env vars con prioridad automática)
+engine = create_engine(settings.database_url, echo=False)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

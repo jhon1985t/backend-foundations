@@ -23,7 +23,7 @@
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
 - **Versionado** Objetivo Python 3.13; FastAPI 0.121 y uvicorn 0.38 fijados en [pyproject.toml](pyproject.toml#L1-L25).
-- **Config DB** `DATABASE_URL` controla la conexión. Si no está definida, se usa SQLite local (`./local.db`). Tests usan `app_test_db` hardcoded en [tests/conftest.py](tests/conftest.py#L9). Para desarrollo con Postgres: `postgresql+psycopg://app_user:app_password@localhost:5433/app_db`.
+- **Config DB** Centralizado en [app/settings.py](app/settings.py#L1-L13): `database_url` lee `DATABASE_URL` env var automáticamente vía Pydantic-settings, default a SQLite local (`sqlite:///./local.db`). No requiere `os.getenv()`, Pydantic lo maneja. [app/db.py](app/db.py#L8-L12) consume `settings.database_url` sin duplicación. Tests usan `app_test_db` hardcoded en [tests/conftest.py](tests/conftest.py#L9). Para desarrollo con Postgres: `$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"`.
 - **Extender rutas** Añade endpoints en módulos bajo `app/` y súmalos con `app.include_router` en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
 - **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` + `@pytest_asyncio.fixture` ([tests/conftest.py](tests/conftest.py#L1-L2)) para fixtures async; convención de nombres `test_*.py` para auto-discovery.
 
@@ -40,6 +40,7 @@
 - ✅ SQLAlchemy sync + modelo User + endpoint POST /users/
 - ✅ Endpoint /debug/db compatible con SQLite y Postgres
 - ✅ BD de prueba separada (app_test_db) para testing
+- ✅ Config DB centralizada con Pydantic-settings (idiomático, sin `os.getenv()`)
 
 ### Brechas Principales vs Backend Completo
 1. **Persistencia:** SQLAlchemy sync básico, falta async/migraciones/repositorios
@@ -57,6 +58,7 @@
 - ✅ SQLAlchemy sync integrado con Postgres
 - ✅ Modelo User + schemas Pydantic
 - ✅ Tests con DB real (testcontainers-style con app_test_db)
+- ✅ Config DB centralizada (Pydantic-settings)
 - ⏳ Migrar a SQLAlchemy async
 - ⏳ Migraciones con Alembic
 - ⏳ Implementar repositorios (separar de routes)
