@@ -2,6 +2,8 @@ import pytest
 import pytest_asyncio
 import os
 
+from redis.asyncio import Redis
+from app.settings import settings
 from httpx import AsyncClient, ASGITransport
 from app.main import create_app
 from app.db import Base, create_engine, sessionmaker
@@ -82,3 +84,17 @@ async def async_client():
     # Restore original after test
     db_module.engine = original_engine
     db_module.SessionLocal = original_sessionlocal
+
+
+@pytest_asyncio.fixture
+async def redis_client(request):
+    try:
+        redis = Redis.from_url(settings.redis_url, decode_responses=True)
+        await redis.ping()  # Test connection
+        await redis.flushdb()  # Clear all data before test
+        yield redis
+        await redis.flushdb()  # Clear all data after test
+        await redis.aclose()
+    except Exception as e:
+        # Skip tests that require Redis if it's not available
+        pytest.skip(f"Redis not available: {e}")

@@ -12,5 +12,8 @@ class Settings(BaseSettings):
         "postgresql+psycopg://app_user:app_password@localhost:5433/app_test_db"
     )
 
+    # Redis URL (override via env var REDIS_URL); default matches docker-compose (host port 6380)
+    redis_url: str = "redis://localhost:6380/0"
+
 
 settings = Settings()

@@ -4,6 +4,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router as api_router
 from app.users.routes import router as users_router
+from app.cache.routes import router as cache_router
 from app.error_handlers import (
     handle_http_exception,
     handle_request_validation,
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
     # Routes
     app.include_router(api_router)
     app.include_router(users_router)
+    app.include_router(cache_router)
     # Global Error Handlers
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_request_validation)
