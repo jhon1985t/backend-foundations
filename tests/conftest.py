@@ -87,9 +87,14 @@ async def async_client():
 
 
 @pytest_asyncio.fixture
-async def redis_client():
-    redis = Redis.from_url(settings.redis_url, decode_responses=True)
-    await redis.flushdb()  # Clear all data before test
-    yield redis
-    await redis.flushdb()  # Clear all data after test
-    await redis.aclose()
+async def redis_client(request):
+    try:
+        redis = Redis.from_url(settings.redis_url, decode_responses=True)
+        await redis.ping()  # Test connection
+        await redis.flushdb()  # Clear all data before test
+        yield redis
+        await redis.flushdb()  # Clear all data after test
+        await redis.aclose()
+    except Exception as e:
+        # Skip tests that require Redis if it's not available
+        pytest.skip(f"Redis not available: {e}")
