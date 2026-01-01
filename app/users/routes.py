@@ -1,7 +1,10 @@
+import json
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
+from app.cache import get_redis
+from app.exceptions import ResourceNotFound
 from app.db import SessionLocal
 from app.users.models import User
 from app.users.schemas import UserOut, UserCreate
@@ -33,3 +36,26 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
     db.commit()
     db.refresh(new_user)
     return UserOut(id=new_user.id, email=new_user.email, full_name=new_user.full_name)
+
+
+@router.get("/{user_id}", response_model=UserOut)
+async def get_user(user_id: int, db: Session = Depends(get_db)) -> UserOut:
+    redis = await get_redis()
+    cache_key = f"user:{user_id}"
+    # Try to get user data from Redis cache
+    cached_user = await redis.get(cache_key)
+    if cached_user:
+        user_data = json.loads(cached_user)
+        return UserOut(**user_data)
+
+    # If not in cache, fetch from database
+    user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+    if not user:
+        raise ResourceNotFound(
+            message="Usuario no encontrado", details={"user_id": user_id}
+        )
+
+    user_out = UserOut(id=user.id, email=user.email, full_name=user.full_name)
+    # Store user data in Redis cache
+    await redis.set(cache_key, user_out.model_dump_json())
+    return user_out
