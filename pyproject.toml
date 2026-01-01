@@ -29,6 +29,7 @@ sqlalchemy = ">=2.0.45,<3.0.0"
 psycopg = {version = ">=3.3.2,<4.0.0", extras = ["binary"]}
 email-validator = ">=2.0,<3.0"
 alembic = "^1.17.2"
+pydantic-settings = "^2.12.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.0"
