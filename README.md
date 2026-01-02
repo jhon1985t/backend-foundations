@@ -182,6 +182,15 @@ pre-commit run --all-files
 # Levantar PostgreSQL (opcional)
 docker compose up db -d
 
+# Levantar Kafka + ZooKeeper
+docker compose up kafka zookeeper -d
+
+# Kafka: enviar y consumir un evento de prueba
+# En una terminal (consumer)
+poetry run python app\kafka\consumer.py
+# En otra terminal (producer)
+poetry run python -c "from app.kafka.producer import send_user_created_event; send_user_created_event('99','kafka99@example.com')"
+
 # Migraciones seguras
 ./scripts/migrate_sqlite.ps1         # SQLite por defecto
 ./scripts/migrate_postgres.ps1       # PostgreSQL local (puedes pasar -Url "..." para otro destino)
@@ -195,4 +204,6 @@ poetry run pytest -q
 # Lint
 poetry run ruff check .
 poetry run black app tests
+pre-commit run --all-files
+
 ```
