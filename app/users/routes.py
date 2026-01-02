@@ -9,6 +9,7 @@ from app.db import SessionLocal
 from app.users.models import User
 from app.users.schemas import UserOut, UserCreate
 from app.exceptions import ConflictError
+from app.kafka.producer import emit_user_created
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -35,6 +36,10 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Emit Kafka event
+    emit_user_created(user_id=new_user.id, email=new_user.email)
+
     return UserOut(id=new_user.id, email=new_user.email, full_name=new_user.full_name)
 
 

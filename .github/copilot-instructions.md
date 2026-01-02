@@ -19,6 +19,9 @@
   - App en vivo con SQLite: `poetry run uvicorn app.main:app --reload` (default, usa `./local.db`).
   - DB Postgres: levanta el servicio con `docker compose up db -d` (puerto 5433).
   - Crear BD de prueba: `docker exec -it $(docker ps -q -f "name=db") psql -U app_user -d postgres -c "CREATE DATABASE app_test_db;"`.
+  - Kafka/ZooKeeper: `docker compose up kafka zookeeper -d` (Kafka publica en host `localhost:9093`, inter-broker `kafka:9092`).
+  - Kafka producer: `poetry run python -c "from app.kafka.producer import send_user_created_event; send_user_created_event('1','test@example.com')"` (requiere Kafka en 9093).
+  - Kafka consumer (simple): `poetry run python app\kafka\consumer.py` y en otra terminal enviar evento; verás `Received event: ...`.
 	- Pruebas: `poetry run pytest -q` (10 tests, incluye integración con Postgres en `app_test_db`).
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
