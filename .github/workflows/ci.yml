@@ -105,7 +105,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t backend-foundations .
+        run: docker build --build-arg INSTALL_DEV=true -t backend-foundations .
 
       - name: Run tests in container
         run: docker run --rm backend-foundations poetry run pytest -q
