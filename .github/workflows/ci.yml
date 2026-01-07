@@ -90,6 +90,11 @@ jobs:
       - name: Install deps
         run: poetry install --no-interaction --no-ansi --no-root
 
+      - name: Run migrations
+        env:
+          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
+        run: poetry run alembic upgrade head
+
       - name: Ruff (lint)
         run: poetry run ruff check .
 
