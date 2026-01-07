@@ -67,6 +67,30 @@ jobs:
           DATABASE_URL: "sqlite:///./test_db.sqlite"
         run: poetry run python scripts/init_test_db.py
 
+      - name: Diagnose DB before pytest
+        env:
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
+        run: |
+          poetry run python - <<'PY'
+          import os
+          from sqlalchemy import inspect, select, func
+          from app.db import engine, SessionLocal
+          from app.users.models import User
+
+          print("DATABASE_URL:", os.getenv("DATABASE_URL"))
+          print("Engine URL:", engine.url)
+          inspector = inspect(engine)
+          tables = inspector.get_table_names()
+          print("Tables:", tables)
+
+          with SessionLocal() as db:
+              try:
+                  count = db.scalar(select(func.count()).select_from(User))
+                  print("Users count:", count)
+              except Exception as e:
+                  print("Users count check failed:", e)
+          PY
+
       - name: Pytest (SQLite)
         env:
           DATABASE_URL: "sqlite:///./test_db.sqlite"
