@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     # Lee DATABASE_URL desde env vars automáticamente; default SQLite local
     database_url: str = "sqlite:///./local.db"
 
+    # JWT settings
+    jwt_secret_key: str = "CHANGE_ME"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+
     # test_database_url para tests explícitos con Postgres
     test_database_url: str = (
         "postgresql+psycopg://app_user:app_password@localhost:5433/app_test_db"
