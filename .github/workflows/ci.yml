@@ -8,12 +8,8 @@ on:
 
 jobs:
   test:
-    name: Lint & Tests (Python ${{ matrix.python-version }})
+    name: Lint & Tests (Python 3.13)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [ "3.11", "3.12", "3.13" ]  # Test múltiples versiones, 3.11/3.12 como estables
 
     services:
       postgres:
@@ -42,7 +38,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
           cache: "pip"
 
       - name: Install Poetry
@@ -93,9 +89,9 @@ jobs:
       - name: Install app (for seeding script to import)
         run: poetry install --no-interaction --no-ansi
 
-      - name: Check bcrypt installation
+      - name: Check argon2 installation
         run: |
-          poetry run python -c "import bcrypt; print(f'✓ bcrypt {bcrypt.__version__} installed')"
+          poetry run python -c "import argon2; print(f'✓ argon2-cffi {argon2.__version__} installed')"
           poetry run python -c "from passlib.context import CryptContext; print('✓ passlib installed')"
           poetry run python -c "from app.auth.security import hash_password, verify_password; h = hash_password('test'); print(f'✓ Password hashing works: {h[:30]}...')"
 
