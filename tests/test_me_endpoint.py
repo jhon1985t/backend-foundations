@@ -23,9 +23,3 @@ async def test_me_endpoint(async_client):
     print(f"Response: {me_response.json()}")
 
     assert me_response.status_code == 200
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(test_me_endpoint())

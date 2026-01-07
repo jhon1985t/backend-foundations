@@ -10,9 +10,3 @@ async def test_login(async_client):
     print(f"\nStatus: {response.status_code}")
     print(f"Response: {response.json()}")
     assert response.status_code == 200
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(test_login())

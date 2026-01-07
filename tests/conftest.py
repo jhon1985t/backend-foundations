@@ -12,7 +12,8 @@ from sqlalchemy import text
 
 
 # Use DATABASE_URL when provided (CI uses Postgres); fallback to local SQLite for dev
-db_url = settings.database_url
+# Read directly from environment to ensure CI env vars are respected
+db_url = os.getenv("DATABASE_URL", "sqlite:///./test_db.sqlite")
 is_sqlite = db_url.startswith("sqlite")
 
 if is_sqlite:
