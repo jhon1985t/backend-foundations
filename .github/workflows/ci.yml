@@ -59,6 +59,24 @@ jobs:
       - name: Black (format check)
         run: poetry run black --check app tests
 
+      - name: Verify test DB setup
+        env:
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
+        run: |
+          poetry run python - <<'PY'
+          import os
+          from app.db import Base, engine
+          import app.users.models
+
+          print(f"DATABASE_URL: {os.getenv('DATABASE_URL')}")
+          print(f"Engine URL: {engine.url}")
+          Base.metadata.create_all(bind=engine)
+          from sqlalchemy import inspect
+          inspector = inspect(engine)
+          tables = inspector.get_table_names()
+          print(f"✓ Tables created: {tables}")
+          PY
+
       - name: Pytest (SQLite)
         env:
           DATABASE_URL: "sqlite:///./test_db.sqlite"
