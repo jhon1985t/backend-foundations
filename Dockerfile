@@ -14,6 +14,8 @@ WORKDIR /app
 # Herramientas de compilación (si las necesitas)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc \
+    librdkafka1 librdkafka-dev \
+    libffi-dev \
  && rm -rf /var/lib/apt/lists/*
 
 # Instala Poetry

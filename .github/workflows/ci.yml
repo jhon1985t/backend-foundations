@@ -108,4 +108,7 @@ jobs:
         run: docker build --build-arg INSTALL_DEV=true -t backend-foundations .
 
       - name: Run tests in container
-        run: docker run --rm backend-foundations poetry run pytest -q
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="sqlite:///./test_db.sqlite" \
+            backend-foundations poetry run pytest -q
