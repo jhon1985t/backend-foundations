@@ -90,6 +90,9 @@ jobs:
       - name: Install deps
         run: poetry install --no-interaction --no-ansi --no-root
 
+      - name: Install app (for seeding script to import)
+        run: poetry install --no-interaction --no-ansi
+
       - name: Run migrations
         env:
           DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
@@ -100,23 +103,33 @@ jobs:
           DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
         run: |
           poetry run python - <<'PY'
-          from app.db import engine
+          import sys
+          from sqlalchemy import create_engine, text
           from app.auth.security import hash_password
-          from sqlalchemy import text
 
+          db_url = "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
+          engine = create_engine(db_url)
           password_hash = hash_password("1234")
-          with engine.begin() as conn:
-              conn.execute(text(
-                  """
-                  INSERT INTO users (email, full_name, password_hash)
-                  VALUES (:email, :full_name, :password_hash)
-                  ON CONFLICT (email) DO NOTHING
-                  """
-              ), {
-                  "email": "user@example.com",
-                  "full_name": "string",
-                  "password_hash": password_hash
-              })
+
+          try:
+              with engine.begin() as conn:
+                  conn.execute(text(
+                      """
+                      INSERT INTO users (email, full_name, password_hash)
+                      VALUES (:email, :full_name, :password_hash)
+                      ON CONFLICT (email) DO NOTHING
+                      """
+                  ), {
+                      "email": "user@example.com",
+                      "full_name": "string",
+                      "password_hash": password_hash
+                  })
+              print("✓ Test user seeded successfully")
+          except Exception as e:
+              print(f"✗ Seeding failed: {e}", file=sys.stderr)
+              sys.exit(1)
+          finally:
+              engine.dispose()
           PY
 
       - name: Ruff (lint)
