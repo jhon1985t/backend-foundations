@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ "3.13" ]  # puedes añadir "3.11" si quieres matriz
+        python-version: [ "3.11", "3.12", "3.13" ]  # Test múltiples versiones, 3.11/3.12 como estables
 
     services:
       postgres:
