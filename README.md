@@ -1,5 +1,5 @@
 # 🧠 Backend Foundations
-![CI](https://github.com/TU_USUARIO/backend-foundations/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/jhon1985t/backend-foundations/actions/workflows/ci.yml/badge.svg)
 
 Proyecto base para el aprendizaje y desarrollo profesional de **backend con Python**.
 Incluye herramientas esenciales para proyectos empresariales modernos (Poetry, pre-commit, pytest, Docker).
@@ -44,6 +44,8 @@ Por defecto, la app usa **SQLite local** (`./local.db`) para:
 
 **No necesitas hacer nada**, solo corre `poetry run uvicorn app.main:app --reload`.
 
+Para pruebas y CI usamos un archivo dedicado: `./test_db.sqlite` para garantizar aislamiento y diagnósticos consistentes.
+
 ---
 
 ### **PostgreSQL (Opcional - Para Experimentar)**
@@ -78,7 +80,7 @@ poetry run uvicorn app.main:app --reload
 
 **pgAdmin** (Opcional): Puedes conectarte con cualquier cliente Postgres a `localhost:5433` para inspeccionar las tablas.
 
-**Nota**: Los tests **siempre usan SQLite in-memory** para velocidad y aislamiento, independientemente de la configuración de la app.
+**Nota**: Los tests usan **SQLite en archivo (`./test_db.sqlite`)** para velocidad y aislamiento, y para permitir pasos de diagnóstico en CI.
 
 ### **Flujos seguros de migración (evitar errores)**
 
@@ -126,7 +128,12 @@ poetry run pytest tests/test_api.py -v
 poetry run pytest tests/test_users.py -v
 ```
 
-Los tests usan **SQLite in-memory** automáticamente (rápido y aislado).
+Los tests usan **SQLite en archivo (`./test_db.sqlite`)** automáticamente (rápido y aislado). Se crea/limpia por los fixtures de `pytest` y por el script `scripts/init_test_db.py`.
+
+Usuario sembrado para pruebas:
+- Email: `user@example.com`
+- Password: `1234`
+- Hash: Argon2 via Passlib (`$argon2id$...`)
 
 ---
 
@@ -146,6 +153,26 @@ pre-commit run --all-files
 ---
 
 ## 📝 Notas Técnicas
+
+### CI Pipeline (GitHub Actions)
+
+- Python 3.13, SQLite por defecto.
+- Paso de seed: ejecuta `scripts/init_test_db.py` con `DATABASE_URL=sqlite:///./test_db.sqlite`.
+- Diagnóstico previo a tests: imprime `DATABASE_URL`, URL del engine, tablas y conteo de usuarios.
+- Smoke de Docker: construye la imagen con `--build-arg INSTALL_DEV=true` y corre `pytest` dentro del contenedor.
+- Requisitos de sistema en imagen: `librdkafka` (para `confluent-kafka`) y `libffi` (para `argon2-cffi`).
+
+### Auth y Seguridad
+
+- Hash de contraseñas con Argon2 (Passlib), configurado en `app/auth/security.py`.
+- Endpoints que mutan requieren header `x-api-key: secret-dev-key`.
+
+### Ejecutar tests en contenedor (local)
+
+```bash
+docker build --build-arg INSTALL_DEV=true -t backend-foundations .
+docker run --rm -e DATABASE_URL="sqlite:///./test_db.sqlite" backend-foundations poetry run pytest -q
+```
 
 ### Pytest Configuration
 

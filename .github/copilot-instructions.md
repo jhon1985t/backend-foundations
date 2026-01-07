@@ -1,7 +1,7 @@
 # Backend Foundations Copilot Guide
 - **Arquitectura** App factory en [app/main.py](app/main.py#L15-L28) registra `api_router` y `users_router`, centraliza 3 handlers globales; sigue este patrón si agregas routers o excepciones para mantener el wiring consistente.
 - **Routes** Endpoints en [app/api/routes.py](app/api/routes.py#L6-L43) usando el `router` de módulo; incluye routers adicionales vía `app.include_router` en `create_app`.
-- **Auth** Endpoints mutantes dependen de `require_api_key` con header `x-api-key: secret-dev-key` ([app/api/routes.py](app/api/routes.py#L14-L17)); fallas devuelven `HTTP_401`.
+- **Auth (API key + JWT)** Endpoints mutantes dependen de `require_api_key` con header `x-api-key: secret-dev-key` ([app/api/routes.py](app/api/routes.py#L14-L17)); además, autenticación JWT: `POST /auth/login` emite token y `GET /users/me` devuelve el usuario autenticado ([app/auth/routes.py](app/auth/routes.py), [app/auth/deps.py](app/auth/deps.py)).
 - **Data store** Dual: memoria `_fake_db` para items ([app/api/routes.py](app/api/routes.py#L9-L11)) y Postgres para usuarios ([app/users/routes.py](app/users/routes.py#L11-L34)); SQLAlchemy sync con modelo `User` ([app/users/models.py](app/users/models.py#L1-L12)).
 - **Flujo POST /items/** Genera SKU `AUTO-XXXX` si falta y valida unicidad; colisión levanta `ConflictError` con `details` dict.
 - **Flujo POST /users/** Valida email único en DB; conflicto levanta `ConflictError` con `details={"email": payload.email}` ([app/users/routes.py](app/users/routes.py#L27)).
@@ -12,7 +12,7 @@
 - **Debug endpoint** GET `/debug/db` ([app/api/routes.py](app/api/routes.py#L20-L54)) soporta SQLite y Postgres, devuelve nombre de DB, tablas y URL del engine; útil para verificar conexión.
 - **Buenas prácticas de arquitectura** Mantén lógica de negocio en el router o en nuevas capas pero retornando `DomainError` cuando corresponda; conserva el app factory para pruebas y futura configuración.
 - **Patrones de pruebas** Usa `@pytest.mark.asyncio` y el fixture `async_client` con `ASGITransport(app=app)` ([tests/conftest.py](tests/conftest.py#L1-L47)) para evitar red; tests que usan DB reciben `db_session` override automáticamente; incluye siempre `x-api-key` y la ruta con slash.
-- **Cobertura actual** 10 tests: health, items (4), errores (3), smoke (1), usuarios con DB (2) en [tests/test_users.py](tests/test_users.py#L1-L36); todos pasan con `poetry run pytest -q`.
+- **Cobertura actual** 15 tests: health, items, errores, smoke, auth (login y `users/me`), Kafka/Redis opcionales; todos pasan con `poetry run pytest -q`.
 - **Servicios locales**
 	- Instala deps: `poetry install` (usa Python 3.13).
 	- App en vivo con Postgres: `$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"; poetry run uvicorn app.main:app --reload`.
@@ -22,11 +22,12 @@
   - Kafka/ZooKeeper: `docker compose up kafka zookeeper -d` (Kafka publica en host `localhost:9093`, inter-broker `kafka:9092`).
   - Kafka producer: `poetry run python -c "from app.kafka.producer import send_user_created_event; send_user_created_event('1','test@example.com')"` (requiere Kafka en 9093).
   - Kafka consumer (simple): `poetry run python app\kafka\consumer.py` y en otra terminal enviar evento; verás `Received event: ...`.
-	- Pruebas: `poetry run pytest -q` (10 tests, incluye integración con Postgres en `app_test_db`).
+	- Pruebas: `poetry run pytest -q` (15 tests pasando, usa SQLite por defecto; override con `DATABASE_URL` para Postgres).
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
 - **Versionado** Objetivo Python 3.13; FastAPI 0.121 y uvicorn 0.38 fijados en [pyproject.toml](pyproject.toml#L1-L25).
-- **Config DB** Centralizado en [app/settings.py](app/settings.py#L1-L13): `database_url` lee `DATABASE_URL` env var automáticamente vía Pydantic-settings, default a SQLite local (`sqlite:///./local.db`). No requiere `os.getenv()`, Pydantic lo maneja. [app/db.py](app/db.py#L8-L12) consume `settings.database_url` sin duplicación. Tests usan `app_test_db` hardcoded en [tests/conftest.py](tests/conftest.py#L9). Para desarrollo con Postgres: `$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"`.
+- **Config DB** Centralizado en [app/settings.py](app/settings.py#L1-L13): `database_url` lee `DATABASE_URL` env var automáticamente vía Pydantic-settings, default a SQLite local (`sqlite:///./local.db`). [app/db.py](app/db.py#L8-L12) consume `settings.database_url` sin duplicación. **Tests**: [tests/conftest.py](tests/conftest.py) usa SQLite por defecto (`sqlite:///./test_db.sqlite`), lee `DATABASE_URL` de `os.getenv()` para override; `setup_database` crea tablas automáticamente con `Base.metadata.create_all()` cuando usa SQLite; se siembra `user@example.com` con password `1234`. **CI**: GitHub Actions corre con SQLite; ejecuta `scripts/init_test_db.py` para crear/sembrar y un paso de diagnóstico previo a pytest; smoke Docker instala dev deps y libs del sistema.
+- **Hashing de contraseñas** Usa **argon2** (no bcrypt) vía passlib; argon2 tiene mejor compatibilidad cross-platform y con Python 3.13. [app/auth/security.py](app/auth/security.py#L8) configura `CryptContext(schemes=["argon2"])`. Hashes comienzan con `$argon2id$`.
 - **Extender rutas** Añade endpoints en módulos bajo `app/` y súmalos con `app.include_router` en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
 - **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` + `@pytest_asyncio.fixture` ([tests/conftest.py](tests/conftest.py#L1-L2)) para fixtures async; convención de nombres `test_*.py` para auto-discovery.
 
@@ -37,18 +38,19 @@
 ### Estado Actual (Completado)
 - ✅ App factory + error handlers centralizados
 - ✅ Validaciones Pydantic v2 + dominio de errores
-- ✅ Tests async con httpx + ASGITransport (10 tests pasando)
-- ✅ CI/CD (GitHub Actions) + linters (ruff, black)
-- ✅ Docker + Postgres en compose (integrado con usuarios)
-- ✅ SQLAlchemy sync + modelo User + endpoint POST /users/
+- ✅ Tests async con httpx + ASGITransport (15 tests pasando con SQLite)
+- ✅ CI/CD (GitHub Actions) simplificado con Python 3.13 + SQLite (sin servicios externos)
+- ✅ Docker + Postgres en compose (opcional para desarrollo local)
+- ✅ SQLAlchemy sync + modelo User + endpoints auth (login, /users/me)
 - ✅ Endpoint /debug/db compatible con SQLite y Postgres
-- ✅ BD de prueba separada (app_test_db) para testing
-- ✅ Config DB centralizada con Pydantic-settings (idiomático, sin `os.getenv()`)
+- ✅ Tests con SQLite automático (create_all/drop_all), override con DATABASE_URL para Postgres
+- ✅ Config DB centralizada con Pydantic-settings
+- ✅ Password hashing con argon2 (compatible Python 3.13)
 
 ### Brechas Principales vs Backend Completo
 1. **Persistencia:** SQLAlchemy sync básico, falta async/migraciones/repositorios
 2. **Arquitectura en capas:** Lógica en routers, falta services/repositories
-3. **Auth:** Solo API key hardcoded, sin JWT/OAuth2/roles
+3. **Auth:** JWT básico (login/me) sin registro/refresh/roles
 4. **Mensajería:** Sin Kafka/SQS/Celery/eventos de dominio
 5. **gRPC:** No existe protobuf ni servicios gRPC
 6. **Observabilidad:** Sin logging estructurado/métricas/traces
@@ -74,10 +76,10 @@
 - Unit of Work pattern para transacciones
 
 #### **Fase 3: Auth Real**
-- JWT con FastAPI Security (OAuth2PasswordBearer)
-- Endpoints registro/login/refresh token
-- RBAC básico con scopes
-- Hash passwords con bcrypt
+- JWT implementado (HS256) con `python-jose` y `OAuth2PasswordRequestForm`
+- Pendiente: registro y refresh token
+- RBAC básico con scopes (pendiente)
+- Hash passwords con Argon2 (completado)
 
 #### **Fase 4: Observabilidad**
 - Logging estructurado (structlog con JSON)
@@ -134,3 +136,19 @@ app/
   ├── grpc_services/  # gRPC endpoints
   └── observability/  # logging, metrics
 ```
+
+---
+
+## Autenticación — Implementación Actual
+
+- **Hashing:** Argon2 vía Passlib; funciones `hash_password()` y `verify_password()` en [app/auth/security.py](app/auth/security.py).
+- **JWT:** HS256 con `python-jose`; `create_access_token()` incluye `sub` (id en string), `email`, `iat`, `exp` en [app/auth/security.py](app/auth/security.py); validación/decodificación en [app/auth/deps.py](app/auth/deps.py).
+- **Endpoints:** `POST /auth/login` emite token; `GET /users/me` protegido devuelve usuario actual ([app/auth/routes.py](app/auth/routes.py), [app/users/routes.py](app/users/routes.py)).
+- **Esquema y migraciones:** Tabla `users` con `password_hash` NOT NULL; ver [alembic/versions/](alembic/versions/).
+- **Seed de pruebas:** Fixtures en [tests/conftest.py](tests/conftest.py) siembran `user@example.com`/`1234`; script [scripts/init_test_db.py](scripts/init_test_db.py) crea tablas y siembra para CI.
+- **CI/CD:** Workflow en [.github/workflows/ci.yml](.github/workflows/ci.yml) con Python 3.13 + SQLite; paso de diagnóstico previo a pytest; smoke Docker construye con `--build-arg INSTALL_DEV=true` e instala `librdkafka`/`libffi`.
+- **Dependencias:** [pyproject.toml](pyproject.toml) incluye `passlib[argon2]`, `argon2-cffi`, `python-jose`.
+
+### Pruebas
+- Local: `poetry run python scripts/init_test_db.py` y `poetry run pytest -q`.
+- Docker: `docker build --build-arg INSTALL_DEV=true -t backend-foundations .` y `docker run --rm -e DATABASE_URL="sqlite:///./test_db.sqlite" backend-foundations poetry run pytest -q`.

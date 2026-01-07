@@ -7,29 +7,43 @@ from app.settings import settings
 from httpx import AsyncClient, ASGITransport
 from app.main import create_app
 from app.db import Base, create_engine, sessionmaker
+from app.auth.security import hash_password
 from sqlalchemy import text
 
+# Importar todos los modelos para que se registren en Base.metadata
+from app.users.models import User  # noqa: F401
 
-# Use SQLite file for tests (better isolation than in-memory)
-TEST_DB_FILE = "test_db.sqlite"
-engine_test = create_engine(f"sqlite:///{TEST_DB_FILE}", echo=False)
+
+# SQLite por defecto para tests (CI y local); usa DATABASE_URL env var para override (ej. Postgres en integración)
+# Read directly from environment to ensure CI env vars are respected
+db_url = os.getenv("DATABASE_URL", "sqlite:///./test_db.sqlite")
+is_sqlite = db_url.startswith("sqlite")
+
+if is_sqlite:
+    # Usar test_db.sqlite para tests, nunca local.db
+    TEST_DB_FILE = "test_db.sqlite"
+    engine_test = create_engine(f"sqlite:///{TEST_DB_FILE}", echo=False)
+else:
+    TEST_DB_FILE = None
+    engine_test = create_engine(db_url, echo=False)
+
 SessionTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
-    # Create the database tables once for all tests
-    Base.metadata.create_all(bind=engine_test)
+    # SQLite: create/drop tables automáticamente; Postgres: asume migraciones ya corrieron
+    if is_sqlite:
+        Base.metadata.create_all(bind=engine_test)
     yield
-    # Drop the database tables after all tests
-    Base.metadata.drop_all(bind=engine_test)
-    # Close all connections and clean up the test database file
-    engine_test.dispose()
-    if os.path.exists(TEST_DB_FILE):
-        try:
-            os.remove(TEST_DB_FILE)
-        except Exception:
-            pass  # File might still be in use
+    if is_sqlite:
+        Base.metadata.drop_all(bind=engine_test)
+        engine_test.dispose()
+        if TEST_DB_FILE and os.path.exists(TEST_DB_FILE):
+            try:
+                os.remove(TEST_DB_FILE)
+            except Exception:
+                pass  # File might still be in use
 
 
 @pytest_asyncio.fixture
@@ -57,13 +71,37 @@ async def async_client():
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Clear data before each test
+    # Ensure test user exists and clear data when using SQLite
     session = SessionTest()
     try:
-        session.execute(text("DELETE FROM users;"))
-        session.commit()
+        # For SQLite fallback, clean slate each test
+        if is_sqlite:
+            session.execute(text("DELETE FROM users;"))
+            session.commit()
+
+        # Seed login user if missing
+        existing = session.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": "user@example.com"},
+        ).scalar()
+        if existing is None:
+            session.execute(
+                text(
+                    """
+                    INSERT INTO users (email, full_name, password_hash)
+                    VALUES (:email, :full_name, :password_hash)
+                    """
+                ),
+                {
+                    "email": "user@example.com",
+                    "full_name": "string",
+                    "password_hash": hash_password("1234"),
+                },
+            )
+            session.commit()
     except Exception:
-        pass
+        session.rollback()
+        raise
     finally:
         session.close()
 

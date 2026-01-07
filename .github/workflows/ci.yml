@@ -8,32 +8,8 @@ on:
 
 jobs:
   test:
-    name: Lint & Tests (Python ${{ matrix.python-version }})
+    name: Lint & Tests (Python 3.13)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [ "3.13" ]  # puedes añadir "3.11" si quieres matriz
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 15s
-          --health-timeout 5s
-          --health-retries 10
-
-      redis:
-        image: redis:7
-        ports:
-          - 6380:6379
 
     steps:
       - name: Checkout
@@ -42,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
           cache: "pip"
 
       - name: Install Poetry
@@ -56,28 +32,6 @@ jobs:
           # Usar el entorno del runner (más rápido en CI)
           poetry config virtualenvs.create false
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Wait for Postgres
-        run: |
-          for i in {1..20}; do
-            if pg_isready -h localhost -p 5433 -U test_user; then
-              echo "Postgres is ready"
-              break
-            fi
-            echo "Waiting for Postgres ($i/20)..."
-            sleep 3
-          done
-
-      - name: Create test database
-        env:
-          PGPASSWORD: test_password
-        run: |
-          psql -h localhost -p 5433 -U test_user -d postgres -c "CREATE DATABASE app_test_db;" || echo "Database already exists"
-
       - name: Cache Poetry
         uses: actions/cache@v4
         with:
@@ -90,16 +44,56 @@ jobs:
       - name: Install deps
         run: poetry install --no-interaction --no-ansi --no-root
 
+      - name: Install app (for seeding script to import)
+        run: poetry install --no-interaction --no-ansi
+
+      - name: Check argon2 installation
+        run: |
+          poetry run python -c "import argon2; print(f'✓ argon2-cffi installed')"
+          poetry run python -c "from passlib.context import CryptContext; print('✓ passlib installed')"
+          poetry run python -c "from app.auth.security import hash_password, verify_password; h = hash_password('test'); print(f'✓ Password hashing works: {h[:30]}...')"
+
       - name: Ruff (lint)
         run: poetry run ruff check .
 
       - name: Black (format check)
         run: poetry run black --check app tests
 
-      - name: Pytest
+      - name: Clean test database
+        run: rm -f test_db.sqlite
+
+      - name: Setup test database (SQLite)
         env:
-          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
-          REDIS_URL: "redis://localhost:6380/0"
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
+        run: poetry run python scripts/init_test_db.py
+
+      - name: Diagnose DB before pytest
+        env:
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
+        run: |
+          poetry run python - <<'PY'
+          import os
+          from sqlalchemy import inspect, select, func
+          from app.db import engine, SessionLocal
+          from app.users.models import User
+
+          print("DATABASE_URL:", os.getenv("DATABASE_URL"))
+          print("Engine URL:", engine.url)
+          inspector = inspect(engine)
+          tables = inspector.get_table_names()
+          print("Tables:", tables)
+
+          with SessionLocal() as db:
+              try:
+                  count = db.scalar(select(func.count()).select_from(User))
+                  print("Users count:", count)
+              except Exception as e:
+                  print("Users count check failed:", e)
+          PY
+
+      - name: Pytest (SQLite)
+        env:
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
         run: poetry run pytest -q
 
   docker-build:
@@ -111,7 +105,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t backend-foundations .
+        run: docker build --build-arg INSTALL_DEV=true -t backend-foundations .
 
       - name: Run tests in container
-        run: docker run --rm backend-foundations poetry run pytest -q
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="sqlite:///./test_db.sqlite" \
+            backend-foundations poetry run pytest -q

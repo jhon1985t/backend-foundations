@@ -11,7 +11,11 @@ async def test_create_user_emits_kafka_event(async_client, monkeypatch):
 
     monkeypatch.setattr("app.users.routes.emit_user_created", fake_emit_user_created)
 
-    payload = {"email": "event@test.com", "full_name": "Event User"}
+    payload = {
+        "email": "event@test.com",
+        "full_name": "Event User",
+        "password": "test1234",
+    }
     response = await async_client.post("/users/", json=payload)
 
     assert response.status_code == 201
