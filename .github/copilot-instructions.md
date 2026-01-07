@@ -22,11 +22,11 @@
   - Kafka/ZooKeeper: `docker compose up kafka zookeeper -d` (Kafka publica en host `localhost:9093`, inter-broker `kafka:9092`).
   - Kafka producer: `poetry run python -c "from app.kafka.producer import send_user_created_event; send_user_created_event('1','test@example.com')"` (requiere Kafka en 9093).
   - Kafka consumer (simple): `poetry run python app\kafka\consumer.py` y en otra terminal enviar evento; verás `Received event: ...`.
-	- Pruebas: `poetry run pytest -q` (10 tests, incluye integración con Postgres en `app_test_db`).
+	- Pruebas: `poetry run pytest -q` (15 tests pasando, usa SQLite por defecto; override con `DATABASE_URL` para Postgres).
 	- Lint/format: `poetry run ruff check .`, `poetry run black app tests`, `pre-commit run --all-files`.
 - **Python path** Pytest agrega el root al `PYTHONPATH` ([pyproject.toml](pyproject.toml#L26-L29)) permitiendo `from app.main import app` sin ajustes.
 - **Versionado** Objetivo Python 3.13; FastAPI 0.121 y uvicorn 0.38 fijados en [pyproject.toml](pyproject.toml#L1-L25).
-- **Config DB** Centralizado en [app/settings.py](app/settings.py#L1-L13): `database_url` lee `DATABASE_URL` env var automáticamente vía Pydantic-settings, default a SQLite local (`sqlite:///./local.db`). [app/db.py](app/db.py#L8-L12) consume `settings.database_url` sin duplicación. **Tests**: [tests/conftest.py](tests/conftest.py#L14-L16) lee `DATABASE_URL` directamente de `os.getenv()` para respetar env vars de CI; fallback a SQLite si no está definida. Para desarrollo con Postgres: `$env:DATABASE_URL="postgresql+psycopg://app_user:app_password@localhost:5433/app_db"`.
+- **Config DB** Centralizado en [app/settings.py](app/settings.py#L1-L13): `database_url` lee `DATABASE_URL` env var automáticamente vía Pydantic-settings, default a SQLite local (`sqlite:///./local.db`). [app/db.py](app/db.py#L8-L12) consume `settings.database_url` sin duplicación. **Tests**: [tests/conftest.py](tests/conftest.py#L14-L16) usa SQLite por defecto (`sqlite:///./test_db.sqlite`), lee `DATABASE_URL` de `os.getenv()` para override (ej. Postgres en integración local); fixture `setup_database` crea tablas automáticamente con `Base.metadata.create_all()` cuando usa SQLite. **CI**: GitHub Actions corre con SQLite sin servicios externos.
 - **Hashing de contraseñas** Usa **argon2** (no bcrypt) vía passlib; argon2 tiene mejor compatibilidad cross-platform y con Python 3.13. [app/auth/security.py](app/auth/security.py#L8) configura `CryptContext(schemes=["argon2"])`. Hashes comienzan con `$argon2id$`.
 - **Extender rutas** Añade endpoints en módulos bajo `app/` y súmalos con `app.include_router` en `create_app`; registra validaciones/errores coherentes con el envelope para no romper tests.
 - **Alineación con tests** Respeta slash, headers y formato de errores; usa `AsyncClient` + `ASGITransport` + `@pytest_asyncio.fixture` ([tests/conftest.py](tests/conftest.py#L1-L2)) para fixtures async; convención de nombres `test_*.py` para auto-discovery.
@@ -38,13 +38,14 @@
 ### Estado Actual (Completado)
 - ✅ App factory + error handlers centralizados
 - ✅ Validaciones Pydantic v2 + dominio de errores
-- ✅ Tests async con httpx + ASGITransport (10 tests pasando)
-- ✅ CI/CD (GitHub Actions) + linters (ruff, black)
-- ✅ Docker + Postgres en compose (integrado con usuarios)
-- ✅ SQLAlchemy sync + modelo User + endpoint POST /users/
+- ✅ Tests async con httpx + ASGITransport (15 tests pasando con SQLite)
+- ✅ CI/CD (GitHub Actions) simplificado con Python 3.13 + SQLite (sin servicios externos)
+- ✅ Docker + Postgres en compose (opcional para desarrollo local)
+- ✅ SQLAlchemy sync + modelo User + endpoints auth (login, /users/me)
 - ✅ Endpoint /debug/db compatible con SQLite y Postgres
-- ✅ BD de prueba separada (app_test_db) para testing
-- ✅ Config DB centralizada con Pydantic-settings (idiomático, sin `os.getenv()`)
+- ✅ Tests con SQLite automático (create_all/drop_all), override con DATABASE_URL para Postgres
+- ✅ Config DB centralizada con Pydantic-settings
+- ✅ Password hashing con argon2 (compatible Python 3.13)
 
 ### Brechas Principales vs Backend Completo
 1. **Persistencia:** SQLAlchemy sync básico, falta async/migraciones/repositorios

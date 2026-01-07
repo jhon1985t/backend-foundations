@@ -11,26 +11,6 @@ jobs:
     name: Lint & Tests (Python 3.13)
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 15s
-          --health-timeout 5s
-          --health-retries 10
-
-      redis:
-        image: redis:7
-        ports:
-          - 6380:6379
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,28 +32,6 @@ jobs:
           # Usar el entorno del runner (más rápido en CI)
           poetry config virtualenvs.create false
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Wait for Postgres
-        run: |
-          for i in {1..20}; do
-            if pg_isready -h localhost -p 5433 -U test_user; then
-              echo "Postgres is ready"
-              break
-            fi
-            echo "Waiting for Postgres ($i/20)..."
-            sleep 3
-          done
-
-      - name: Create test database
-        env:
-          PGPASSWORD: test_password
-        run: |
-          psql -h localhost -p 5433 -U test_user -d postgres -c "CREATE DATABASE app_test_db;" || echo "Database already exists"
-
       - name: Cache Poetry
         uses: actions/cache@v4
         with:
@@ -91,54 +49,9 @@ jobs:
 
       - name: Check argon2 installation
         run: |
-          poetry run python -c "import argon2; print(f'✓ argon2-cffi {argon2.__version__} installed')"
+          poetry run python -c "import argon2; print(f'✓ argon2-cffi installed')"
           poetry run python -c "from passlib.context import CryptContext; print('✓ passlib installed')"
           poetry run python -c "from app.auth.security import hash_password, verify_password; h = hash_password('test'); print(f'✓ Password hashing works: {h[:30]}...')"
-
-      - name: Run migrations
-        env:
-          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
-        run: poetry run alembic upgrade head
-
-      - name: Seed test user
-        env:
-          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
-        run: |
-          poetry run python - <<'PY'
-          import sys
-          import traceback
-          from sqlalchemy import create_engine, text
-          from app.auth.security import hash_password
-
-          db_url = "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
-          engine = create_engine(db_url)
-
-          try:
-              print("Hashing password '1234'...", flush=True)
-              password_hash = hash_password("1234")
-              print(f"✓ Password hashed: {password_hash[:30]}...", flush=True)
-
-              print("Inserting user into database...", flush=True)
-              with engine.begin() as conn:
-                  conn.execute(text(
-                      """
-                      INSERT INTO users (email, full_name, password_hash)
-                      VALUES (:email, :full_name, :password_hash)
-                      ON CONFLICT (email) DO NOTHING
-                      """
-                  ), {
-                      "email": "user@example.com",
-                      "full_name": "string",
-                      "password_hash": password_hash
-                  })
-              print("✓ Test user seeded successfully", flush=True)
-          except Exception as e:
-              print(f"✗ Seeding failed: {e}", file=sys.stderr, flush=True)
-              traceback.print_exc()
-              sys.exit(1)
-          finally:
-              engine.dispose()
-          PY
 
       - name: Ruff (lint)
         run: poetry run ruff check .
@@ -146,10 +59,7 @@ jobs:
       - name: Black (format check)
         run: poetry run black --check app tests
 
-      - name: Pytest
-        env:
-          DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
-          REDIS_URL: "redis://localhost:6380/0"
+      - name: Pytest (SQLite)
         run: poetry run pytest -q
 
   docker-build:

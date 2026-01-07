@@ -11,7 +11,7 @@ from app.auth.security import hash_password
 from sqlalchemy import text
 
 
-# Use DATABASE_URL when provided (CI uses Postgres); fallback to local SQLite for dev
+# SQLite por defecto para tests (CI y local); usa DATABASE_URL env var para override (ej. Postgres en integración)
 # Read directly from environment to ensure CI env vars are respected
 db_url = os.getenv("DATABASE_URL", "sqlite:///./test_db.sqlite")
 is_sqlite = db_url.startswith("sqlite")
@@ -28,7 +28,7 @@ SessionTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
-    # For SQLite fallback, create/drop tables; for Postgres assume migrations already ran
+    # SQLite: create/drop tables automáticamente; Postgres: asume migraciones ya corrieron
     if is_sqlite:
         Base.metadata.create_all(bind=engine_test)
     yield
