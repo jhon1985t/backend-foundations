@@ -10,26 +10,34 @@ from app.db import Base, create_engine, sessionmaker
 from sqlalchemy import text
 
 
-# Use SQLite file for tests (better isolation than in-memory)
-TEST_DB_FILE = "test_db.sqlite"
-engine_test = create_engine(f"sqlite:///{TEST_DB_FILE}", echo=False)
+# Use DATABASE_URL when provided (CI uses Postgres); fallback to local SQLite for dev
+db_url = settings.database_url
+is_sqlite = db_url.startswith("sqlite")
+
+if is_sqlite:
+    TEST_DB_FILE = "test_db.sqlite"
+    engine_test = create_engine(f"sqlite:///{TEST_DB_FILE}", echo=False)
+else:
+    TEST_DB_FILE = None
+    engine_test = create_engine(db_url, echo=False)
+
 SessionTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
-    # Create the database tables once for all tests
-    Base.metadata.create_all(bind=engine_test)
+    # For SQLite fallback, create/drop tables; for Postgres assume migrations already ran
+    if is_sqlite:
+        Base.metadata.create_all(bind=engine_test)
     yield
-    # Drop the database tables after all tests
-    Base.metadata.drop_all(bind=engine_test)
-    # Close all connections and clean up the test database file
-    engine_test.dispose()
-    if os.path.exists(TEST_DB_FILE):
-        try:
-            os.remove(TEST_DB_FILE)
-        except Exception:
-            pass  # File might still be in use
+    if is_sqlite:
+        Base.metadata.drop_all(bind=engine_test)
+        engine_test.dispose()
+        if TEST_DB_FILE and os.path.exists(TEST_DB_FILE):
+            try:
+                os.remove(TEST_DB_FILE)
+            except Exception:
+                pass  # File might still be in use
 
 
 @pytest_asyncio.fixture
