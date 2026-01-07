@@ -59,7 +59,12 @@ jobs:
       - name: Black (format check)
         run: poetry run black --check app tests
 
+      - name: Clean test DB (SQLite)
+        run: rm -f test_db.sqlite
+
       - name: Pytest (SQLite)
+        env:
+          DATABASE_URL: "sqlite:///./test_db.sqlite"
         run: poetry run pytest -q
 
   docker-build:
