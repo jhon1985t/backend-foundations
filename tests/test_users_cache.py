@@ -7,6 +7,7 @@ async def test_get_user_caches_response(async_client, redis_client):
     user_data = {
         "email": "testuser@example.com",
         "full_name": "Test User",
+        "password": "changeme123",
     }
 
     response = await async_client.post("/users/", json=user_data)
