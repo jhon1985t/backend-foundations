@@ -93,6 +93,12 @@ jobs:
       - name: Install app (for seeding script to import)
         run: poetry install --no-interaction --no-ansi
 
+      - name: Check bcrypt installation
+        run: |
+          poetry run python -c "import bcrypt; print(f'✓ bcrypt {bcrypt.__version__} installed')"
+          poetry run python -c "from passlib.context import CryptContext; print('✓ passlib installed')"
+          poetry run python -c "from app.auth.security import hash_password, verify_password; h = hash_password('test'); print(f'✓ Password hashing works: {h[:30]}...')"
+
       - name: Run migrations
         env:
           DATABASE_URL: "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
