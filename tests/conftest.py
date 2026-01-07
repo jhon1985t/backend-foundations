@@ -10,6 +10,9 @@ from app.db import Base, create_engine, sessionmaker
 from app.auth.security import hash_password
 from sqlalchemy import text
 
+# Importar todos los modelos para que se registren en Base.metadata
+from app.users.models import User  # noqa: F401
+
 
 # SQLite por defecto para tests (CI y local); usa DATABASE_URL env var para override (ej. Postgres en integración)
 # Read directly from environment to ensure CI env vars are respected
