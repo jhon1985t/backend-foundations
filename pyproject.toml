@@ -34,7 +34,7 @@ redis = {extras = ["hiredis"], version = "^7.1.0"}
 confluent-kafka = "^2.12.2"
 python-jose = {extras = ["cryptography"], version = "^3.5.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
-bcrypt = "^4.3.0"
+bcrypt = "^4.0.1"
 python-multipart = "^0.0.21"
 
 [tool.poetry.group.dev.dependencies]

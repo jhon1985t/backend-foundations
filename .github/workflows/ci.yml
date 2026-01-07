@@ -104,14 +104,19 @@ jobs:
         run: |
           poetry run python - <<'PY'
           import sys
+          import traceback
           from sqlalchemy import create_engine, text
           from app.auth.security import hash_password
 
           db_url = "postgresql+psycopg://test_user:test_password@localhost:5433/app_test_db"
           engine = create_engine(db_url)
-          password_hash = hash_password("1234")
 
           try:
+              print("Hashing password '1234'...", flush=True)
+              password_hash = hash_password("1234")
+              print(f"✓ Password hashed: {password_hash[:30]}...", flush=True)
+
+              print("Inserting user into database...", flush=True)
               with engine.begin() as conn:
                   conn.execute(text(
                       """
@@ -124,9 +129,10 @@ jobs:
                       "full_name": "string",
                       "password_hash": password_hash
                   })
-              print("✓ Test user seeded successfully")
+              print("✓ Test user seeded successfully", flush=True)
           except Exception as e:
-              print(f"✗ Seeding failed: {e}", file=sys.stderr)
+              print(f"✗ Seeding failed: {e}", file=sys.stderr, flush=True)
+              traceback.print_exc()
               sys.exit(1)
           finally:
               engine.dispose()
