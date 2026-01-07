@@ -7,6 +7,7 @@ from app.settings import settings
 from httpx import AsyncClient, ASGITransport
 from app.main import create_app
 from app.db import Base, create_engine, sessionmaker
+from app.auth.security import hash_password
 from sqlalchemy import text
 
 
@@ -65,13 +66,37 @@ async def async_client():
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Clear data before each test
+    # Ensure test user exists and clear data when using SQLite
     session = SessionTest()
     try:
-        session.execute(text("DELETE FROM users;"))
-        session.commit()
+        # For SQLite fallback, clean slate each test
+        if is_sqlite:
+            session.execute(text("DELETE FROM users;"))
+            session.commit()
+
+        # Seed login user if missing
+        existing = session.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": "user@example.com"},
+        ).scalar()
+        if existing is None:
+            session.execute(
+                text(
+                    """
+                    INSERT INTO users (email, full_name, password_hash)
+                    VALUES (:email, :full_name, :password_hash)
+                    """
+                ),
+                {
+                    "email": "user@example.com",
+                    "full_name": "string",
+                    "password_hash": hash_password("1234"),
+                },
+            )
+            session.commit()
     except Exception:
-        pass
+        session.rollback()
+        raise
     finally:
         session.close()
 
