@@ -20,6 +20,7 @@ db_url = os.getenv("DATABASE_URL", "sqlite:///./test_db.sqlite")
 is_sqlite = db_url.startswith("sqlite")
 
 if is_sqlite:
+    # Usar test_db.sqlite para tests, nunca local.db
     TEST_DB_FILE = "test_db.sqlite"
     engine_test = create_engine(f"sqlite:///{TEST_DB_FILE}", echo=False)
 else:
