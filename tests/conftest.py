@@ -7,7 +7,6 @@ from app.settings import settings
 from httpx import AsyncClient, ASGITransport
 from app.main import create_app
 from app.db import Base, create_engine, sessionmaker
-from app.auth.security import hash_password
 from sqlalchemy import text
 
 # Importar todos los modelos para que se registren en Base.metadata
@@ -49,7 +48,7 @@ def setup_database():
 @pytest_asyncio.fixture
 async def async_client():
     import app.db as db_module
-    from app.users.routes import get_db
+    from app.dependencies import get_db
 
     # Patch the app.db module to use our test database
     original_engine = db_module.engine
@@ -74,30 +73,12 @@ async def async_client():
     # Ensure test user exists and clear data when using SQLite
     session = SessionTest()
     try:
+        # Create tables if they don't exist (for each fixture invocation)
+        Base.metadata.create_all(bind=engine_test)
+
         # For SQLite fallback, clean slate each test
         if is_sqlite:
             session.execute(text("DELETE FROM users;"))
-            session.commit()
-
-        # Seed login user if missing
-        existing = session.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": "user@example.com"},
-        ).scalar()
-        if existing is None:
-            session.execute(
-                text(
-                    """
-                    INSERT INTO users (email, full_name, password_hash)
-                    VALUES (:email, :full_name, :password_hash)
-                    """
-                ),
-                {
-                    "email": "user@example.com",
-                    "full_name": "string",
-                    "password_hash": hash_password("1234"),
-                },
-            )
             session.commit()
     except Exception:
         session.rollback()

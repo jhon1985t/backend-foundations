@@ -5,19 +5,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.settings import settings
-from app.db import SessionLocal
+from app.dependencies import get_db
 from app.users.models import User
 
 
 oauth2_schreme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def get_current_user(
