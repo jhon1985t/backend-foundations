@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.cache import get_redis
 from app.exceptions import ResourceNotFound
-from app.db import SessionLocal
+from app.dependencies import get_db
 from app.users.models import User
 from app.users.schemas import UserOut, UserCreate
 from app.exceptions import ConflictError
@@ -15,14 +15,6 @@ from app.auth.deps import get_current_user
 
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.post("/", response_model=UserOut, status_code=201)
