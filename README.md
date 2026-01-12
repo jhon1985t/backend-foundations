@@ -25,11 +25,16 @@ cd backend-foundations
 # Instalar dependencias
 poetry install
 
+# Crear tablas en SQLite local (solo la primera vez o cuando local.db no exista)
+poetry run python -c "from app.db import engine, Base; from app.users.models import User; Base.metadata.create_all(bind=engine)"
+
 # Servidor (SQLite por defecto)
 poetry run uvicorn app.main:app --reload
 ```
 
 Visita [http://localhost:8000/docs](http://localhost:8000/docs) para ver la documentación interactiva.
+
+**Nota:** Si obtienes error `no such table: users`, ejecuta el comando de creación de tablas antes de levantar el servidor.
 
 ---
 
@@ -203,20 +208,129 @@ docker run --rm -e DATABASE_URL="sqlite:///./test_db.sqlite" backend-foundations
 
 ---
 
+## 🧪 Probar gRPC (Opcional)
+
+### **Caso 1: Usuario existente (OK)**
+
+**Terminal 1 (Servidor gRPC):**
+```powershell
+poetry run python app/grpc_server.py
+```
+
+**Terminal 2 (Crear usuario vía REST):**
+```powershell
+poetry run uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+**Terminal 3 (Swagger o PowerShell):**
+```powershell
+# POST /users/ en Swagger (http://127.0.0.1:8001/docs)
+# O con PowerShell:
+$headers = @{ "x-api-key" = "secret-dev-key"; "Content-Type" = "application/json" }
+$body = @{ email = "grpc_demo@example.com"; full_name = "gRPC Demo"; password = "1234" } | ConvertTo-Json
+Invoke-RestMethod -Uri http://127.0.0.1:8001/users/ -Method Post -Headers $headers -Body $body
+```
+
+**Terminal 4 (Cliente gRPC - buscar ID existente):**
+```powershell
+poetry run python app/grpc_client_demo.py --id 1
+```
+
+**Qué esperar:**
+- Terminal 4: `User ID: 1, Email: grpc_demo@example.com, Full Name: gRPC Demo`
+
+---
+
+### **Caso 2: Usuario no existente (NOT_FOUND)**
+
+**Terminal 4 (Cliente gRPC - buscar ID inexistente):**
+```powershell
+poetry run python app/grpc_client_demo.py --id 9999
+```
+
+**Qué esperar:**
+- Terminal 4: `RPC failed: code=NOT_FOUND, details=User not found`
+
+---
+
+## � Servicios Opcionales (Redis & Kafka)
+
+### **Redis (Cache)**
+
+Por defecto, los tests que requieren Redis se saltan automáticamente si no está disponible.
+
+**Levantar Redis:**
+```powershell
+docker compose up redis -d
+```
+
+**Verificar conexión:**
+- URL: `redis://localhost:6380/0` (puerto 6380 por defecto en docker-compose)
+- Test: `poetry run pytest tests/test_users_cache.py -v`
+
+---
+
+### **Kafka (Eventos)**
+
+Por defecto, Kafka está **deshabilitado** (`KAFKA_ENABLED=false`) para evitar errores cuando el broker no está disponible.
+
+**Habilitar Kafka:**
+```powershell
+# 1. Levantar servicios
+docker compose up kafka zookeeper -d
+
+# 2. Habilitar en la app
+$env:KAFKA_ENABLED="true"
+$env:KAFKA_BOOTSTRAP_SERVERS="localhost:9093"
+$env:KAFKA_TOPIC_USER_EVENTS="user-events"
+
+# 3. Levantar servidor
+poetry run uvicorn app.main:app --reload
+```
+
+**Probar emisión de eventos:**
+
+**Terminal 1 (Consumer):**
+```powershell
+poetry run python app\kafka\consumer.py
+```
+
+**Terminal 2 (Servidor):**
+```powershell
+$env:KAFKA_ENABLED="true"
+poetry run uvicorn app.main:app --reload
+```
+
+**Terminal 3 (Crear usuario vía REST):**
+```powershell
+$headers = @{
+    "x-api-key" = "secret-dev-key"
+    "Content-Type" = "application/json"
+}
+$body = @{
+    email = "kafka_test@example.com"
+    full_name = "Kafka Test"
+    password = "1234"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://127.0.0.1:8000/users/ -Method Post -Headers $headers -Body $body
+```
+
+**Qué esperar:**
+- Terminal 1: verás `Received event: {"event_type": "UserCreated", "user_id": "1", "email": "kafka_test@example.com"}`
+- Terminal 2: logs de uvicorn mostrando `POST /users/ 201`
+- Terminal 3: respuesta JSON con el usuario creado
+
+---
+
 ## 🔧 Comandos Útiles
 
 ```powershell
 # Levantar PostgreSQL (opcional)
 docker compose up db -d
 
-# Levantar Kafka + ZooKeeper
-docker compose up kafka zookeeper -d
-
-# Kafka: enviar y consumir un evento de prueba
-# En una terminal (consumer)
-poetry run python app\kafka\consumer.py
-# En otra terminal (producer)
-poetry run python -c "from app.kafka.producer import send_user_created_event; send_user_created_event('99','kafka99@example.com')"
+# Levantar Redis + Kafka + ZooKeeper (opcional)
+docker compose up redis kafka zookeeper -d
 
 # Migraciones seguras
 ./scripts/migrate_sqlite.ps1         # SQLite por defecto
@@ -225,7 +339,7 @@ poetry run python -c "from app.kafka.producer import send_user_created_event; se
 # Servidor en desarrollo
 poetry run uvicorn app.main:app --reload
 
-# Tests
+# Tests (19 passed, 1 skipped sin Redis/Kafka)
 poetry run pytest -q
 
 # Lint
