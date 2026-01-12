@@ -22,5 +22,10 @@ class Settings(BaseSettings):
     # Redis URL (override via env var REDIS_URL); default matches docker-compose (host port 6380)
     redis_url: str = "redis://localhost:6380/0"
 
+    # Kafka (optional)
+    kafka_enabled: bool = False
+    kafka_bootstrap_servers: str = "localhost:9093"
+    kafka_topic_user_events: str = "user-events"
+
 
 settings = Settings()

@@ -12,8 +12,8 @@ from app.error_handlers import (
     handle_domain_error,
 )
 from app.exceptions import DomainError
-
 from app.users.models import User  # noqa: F401 to register the model
+from app.grpc.routes import router as grpc_router  # noqa: F401 to register gRPC routes
 
 
 def create_app() -> FastAPI:
@@ -23,6 +23,7 @@ def create_app() -> FastAPI:
     app.include_router(api_router)
     app.include_router(users_router)
     app.include_router(cache_router)
+    app.include_router(grpc_router)
     # Global Error Handlers
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_request_validation)
